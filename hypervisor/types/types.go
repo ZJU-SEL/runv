@@ -16,6 +16,7 @@ const (
 	E_POD_IP
 	E_WRITEFILE
 	E_READFILE
+	E_MIGRATE_TIMEOUT
 )
 
 // status for POD or container

@@ -353,6 +353,33 @@ func initFailureHandler(ctx *VmContext, ev VmEvent) bool {
 	return processed
 }
 
+func migrateVmHandler(ctx *VmContext, ev VmEvent) bool {
+	processed := true
+	var timer *time.Timer
+	switch ev.Event() {
+	case COMMAND_MIGRATE_VM:
+		fmt.Println("Now in vm_states#stateRunning")
+		ctx.DCtx.MigrateVm(ev.(*MigrateVmCommand))
+	case EVENT_WAIT_MIGRATE_OUT:
+		timer = ev.(*WaitMigrateOutEvent).Timer
+	case COMMAND_RESUME_VM:
+		fmt.Println("Ready to resume the VM")
+		if timer != nil {
+			timer.Stop()
+		}
+		ctx.reportSuccess("Migrate out successfully", nil)
+		ctx.DCtx.ResumeVm()
+	case EVENT_MIGRATE_OUT_TIMEOUT:
+		ctx.client <- &types.VmResponse{
+			VmId:  ctx.Id,
+			Code:  types.E_MIGRATE_TIMEOUT,
+			Cause: "timeout, migrate failed",
+		}
+	default:
+		processed = false
+	}
+	return processed
+}
 func stateInit(ctx *VmContext, ev VmEvent) {
 	if processed := commonStateHandler(ctx, ev, false); processed {
 		//processed by common
@@ -388,6 +415,7 @@ func stateInit(ctx *VmContext, ev VmEvent) {
 			glog.Info("got spec, prepare devices")
 			if ok := ctx.prepareDevice(ev.(*RunPodCommand)); ok {
 				ctx.setTimeout(60)
+				ctx.vmSpec.ShareDir = ""
 				ctx.Become(stateStarting, "STARTING")
 			}
 		case COMMAND_GET_POD_IP:
@@ -470,8 +498,14 @@ func stateRunning(ctx *VmContext, ev VmEvent) {
 	} else if processed := initFailureHandler(ctx, ev); processed {
 		ctx.shutdownVM(true, "Fail during reconnect to a running pod")
 		ctx.Become(stateTerminating, "TERMINATING")
+	} else if processed := migrateVmHandler(ctx, ev); processed {
+
 	} else {
 		switch ev.Event() {
+		case COMMAND_CHECKPOINT_VM:
+			ctx.DCtx.CheckpointVm()
+		case COMMAND_RESTORE_VM:
+			ctx.DCtx.RestoreVm()
 		case COMMAND_STOP_POD:
 			ctx.stopPod()
 			ctx.Become(statePodStopping, "STOPPING")

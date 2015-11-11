@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/hyperhq/runv/hypervisor"
 	"github.com/hyperhq/runv/lib/glog"
@@ -21,13 +22,59 @@ func scsiId2Name(id int) string {
 	return "sd" + utils.DiskId2Name(id)
 }
 
+func resumeVm(qc *QemuContext) {
+	commands := []*QmpCommand{
+		{Execute: "cont", Arguments: map[string]interface{}{}},
+	}
+	qc.qmp <- &QmpSession{commands: commands, callback: nil}
+}
+
+func checkpointVm(qc *QemuContext) {
+	commands := []*QmpCommand{
+		{Execute: "human-monitor-command", Arguments: map[string]interface{}{
+			"command-line": "savevm oldone",
+		}},
+	}
+	qc.qmp <- &QmpSession{commands: commands, callback: nil}
+}
+
+func restoreVm(qc *QemuContext) {
+	commands := []*QmpCommand{
+		{Execute: "human-monitor-command", Arguments: map[string]interface{}{
+			"command-line": "loadvm oldone",
+		}},
+	}
+	qc.qmp <- &QmpSession{commands: commands, callback: nil}
+}
+
+func migrateVm(qc *QemuContext, IP, Port string) {
+	commands := []*QmpCommand{
+		{
+			Execute: "human-monitor-command",
+			Arguments: map[string]interface{}{
+				"command-line": "migrate tcp:" + IP + ":" + Port,
+			},
+		},
+	}
+	timer := time.AfterFunc(50*time.Second, func() {
+		glog.Warning("Migrate Out Timeout.")
+		qc.qmp <- &QmpTimeout{}
+	})
+	qc.qmp <- &QmpSession{
+		commands: commands,
+		callback: &hypervisor.WaitMigrateOutEvent{
+			Timer: timer,
+		},
+	}
+}
+
 func newDiskAddSession(qc *QemuContext, name, sourceType, filename, format string, id int) {
 	commands := make([]*QmpCommand, 2)
 	commands[0] = &QmpCommand{
 		Execute: "human-monitor-command",
 		Arguments: map[string]interface{}{
 			"command-line": "drive_add dummy file=" +
-				filename + ",if=none,id=" + "drive" + strconv.Itoa(id) + ",format=" + format + ",cache=writeback",
+				filename + ",if=none,id=" + "drive" + strconv.Itoa(id) + ",format=" + format + ",snapshot=on,cache=writeback",
 		},
 	}
 	commands[1] = &QmpCommand{

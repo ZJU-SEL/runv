@@ -16,4 +16,5 @@ const (
 	QmpSockName = "qmp.sock"
 
 	QMP_EVENT_SHUTDOWN = "SHUTDOWN"
+	QMP_EVENT_PAUSE    = "PAUSE"
 )

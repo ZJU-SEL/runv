@@ -144,6 +144,12 @@ func (xd *XenDriver) LoadContext(persisted map[string]interface{}) (hypervisor.D
 	return &XenContext{driver: xd, domId: domid}, nil
 }
 
+func (xc *XenContext) ResumeVm()     {}
+func (xc *XenContext) CheckpointVm() {}
+func (xc *XenContext) RestoreVm()    {}
+
+func (xc *XenContext) MigrateVm(cmd *hypervisor.MigrateVmCommand) {}
+
 func (xc *XenContext) Launch(ctx *hypervisor.VmContext) {
 	//    go func(){
 	extra := []string{

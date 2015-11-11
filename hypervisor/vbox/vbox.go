@@ -164,6 +164,12 @@ func (vc *VBoxContext) Associate(ctx *hypervisor.VmContext) {
 	vc.Driver.Machines[vc.Machine.Name] = ctx
 }
 
+func (vc *VBoxContext) ResumeVm()     {}
+func (vc *VBoxContext) CheckpointVm() {}
+func (vc *VBoxContext) RestoreVm()    {}
+
+func (vc *VBoxContext) MigrateVm(cmd *hypervisor.MigrateVmCommand) {}
+
 func (vc *VBoxContext) Dump() (map[string]interface{}, error) {
 	if vc.Machine == nil {
 		return nil, fmt.Errorf("can not serialize VBox context: no process running")

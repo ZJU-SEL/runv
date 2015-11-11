@@ -84,3 +84,21 @@ func launchQemu(qc *QemuContext, ctx *hypervisor.VmContext) {
 func associateQemu(ctx *hypervisor.VmContext) {
 	go watchDog(ctx.DCtx.(*QemuContext), ctx.Hub)
 }
+
+func (qc *QemuContext) MigrateVm(cmd *hypervisor.MigrateVmCommand) {
+	IP := cmd.IP
+	Port := cmd.Port
+	migrateVm(qc, IP, Port)
+}
+
+func (qc *QemuContext) ResumeVm() {
+	resumeVm(qc)
+}
+
+func (qc *QemuContext) CheckpointVm() {
+	checkpointVm(qc)
+}
+
+func (qc *QemuContext) RestoreVm() {
+	restoreVm(qc)
+}

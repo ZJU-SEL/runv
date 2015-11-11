@@ -64,6 +64,11 @@ type DriverContext interface {
 	AllocateNetwork(vmId, requestedIP string, maps []pod.UserContainerPort) (*network.Settings, error)
 	ReleaseNetwork(vmId, releasedIP string, maps []pod.UserContainerPort, file *os.File) error
 
+	MigrateVm(cmd *MigrateVmCommand)
+	ResumeVm()
+	CheckpointVm()
+	RestoreVm()
+
 	Close()
 }
 
@@ -98,6 +103,13 @@ func (ed *EmptyDriver) LoadContext(persisted map[string]interface{}) (DriverCont
 func (ed *EmptyDriver) SupportLazyMode() bool {
 	return false
 }
+func (ec *EmptyContext) MigrateVm(cmd *MigrateVmCommand) {}
+
+func (ec *EmptyContext) ResumeVm() {}
+
+func (ec *EmptyContext) CheckpointVm() {}
+
+func (ec *EmptyContext) RestoreVm() {}
 
 func (ec *EmptyContext) Launch(ctx *VmContext) {}
 
