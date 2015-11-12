@@ -41,6 +41,7 @@ type CheckpointVmCommand struct{}
 type RestoreVmCommand struct{}
 
 type MigrateVmCommand struct {
+    Protocol string
 	IP   string
 	Port string
 }
