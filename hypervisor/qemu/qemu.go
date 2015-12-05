@@ -82,6 +82,11 @@ func (qd *QemuDriver) LoadContext(persisted map[string]interface{}) (hypervisor.
 			if err != nil {
 				return nil, err
 			}
+		case float64:
+			proc, err = os.FindProcess(int(p.(float64)))
+			if err != nil {
+				return nil, err
+			}
 		default:
 			return nil, errors.New("wrong pid field type in persist info")
 		}
