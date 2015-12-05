@@ -380,6 +380,7 @@ func migrateVmHandler(ctx *VmContext, ev VmEvent) bool {
 	}
 	return processed
 }
+
 func stateInit(ctx *VmContext, ev VmEvent) {
 	if processed := commonStateHandler(ctx, ev, false); processed {
 		//processed by common
@@ -415,7 +416,6 @@ func stateInit(ctx *VmContext, ev VmEvent) {
 			glog.Info("got spec, prepare devices")
 			if ok := ctx.prepareDevice(ev.(*RunPodCommand)); ok {
 				ctx.setTimeout(60)
-				ctx.vmSpec.ShareDir = ""
 				ctx.Become(stateStarting, "STARTING")
 			}
 		case COMMAND_GET_POD_IP:

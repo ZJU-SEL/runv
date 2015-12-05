@@ -81,6 +81,20 @@ func launchQemu(qc *QemuContext, ctx *hypervisor.VmContext) {
 	}
 }
 
+func (qc *QemuContext) StartQemuIncomingMode(ctx *hypervisor.VmContext, additionalParmList []string, qmpSockName string) (uint32, error) {
+	qc.qmpSockName = qmpSockName
+	args := qc.arguments(ctx)
+	for _, parm := range additionalParmList {
+		args = append(args, parm)
+	}
+	pid, err := utils.ExecInDaemon("qemu-system-x86_64", append([]string{"qemu-system-x86_64"}, args...))
+	if err != nil {
+		glog.Error("******Start Qemu in incoming mode failed ", err.Error())
+		return pid, err
+	}
+	return pid, nil
+}
+
 func associateQemu(ctx *hypervisor.VmContext) {
 	go watchDog(ctx.DCtx.(*QemuContext), ctx.Hub)
 }
