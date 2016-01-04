@@ -36,10 +36,6 @@ type InitConnectedEvent struct {
 	conn *net.UnixConn
 }
 
-type CheckpointVmCommand struct{}
-
-type RestoreVmCommand struct{}
-
 type MigrateVmCommand struct {
     Protocol string
 	IP   string
@@ -204,11 +200,15 @@ type NetDevRemovedEvent struct {
 	Index int
 }
 
-type MigrateOutTimeoutEvent struct {
+type MigrationTimeoutEvent struct {
 }
 
 type WaitMigrateOutEvent struct {
 	Timer *time.Timer
+}
+
+type PostMigrationEvent struct {
+
 }
 
 type DeviceFailed struct {
@@ -237,11 +237,10 @@ func (qe *InterfaceReleased) Event() int      { return EVENT_INTERFACE_DELETE }
 func (qe *NetDevInsertedEvent) Event() int    { return EVENT_INTERFACE_INSERTED }
 func (qe *NetDevRemovedEvent) Event() int     { return EVENT_INTERFACE_EJECTED }
 func (qe *WaitMigrateOutEvent) Event() int    { return EVENT_WAIT_MIGRATE_OUT }
-func (qe *MigrateOutTimeoutEvent) Event() int { return EVENT_MIGRATE_OUT_TIMEOUT }
+func (qe *MigrationTimeoutEvent) Event() int  { return EVENT_MIGRATION_TIMEOUT }
+func (qe *PostMigrationEvent) Event() int     { return EVENT_POST_MIGRATION }
 func (qe *ResumeVmCommand) Event() int        { return COMMAND_RESUME_VM }
 func (qe *MigrateVmCommand) Event() int       { return COMMAND_MIGRATE_VM }
-func (qe *CheckpointVmCommand) Event() int    { return COMMAND_CHECKPOINT_VM }
-func (qe *RestoreVmCommand) Event() int       { return COMMAND_RESTORE_VM }
 func (qe *RunPodCommand) Event() int          { return COMMAND_RUN_POD }
 func (qe *GetPodIPCommand) Event() int        { return COMMAND_GET_POD_IP }
 func (qe *StopPodCommand) Event() int         { return COMMAND_STOP_POD }

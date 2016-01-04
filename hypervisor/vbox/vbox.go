@@ -165,8 +165,6 @@ func (vc *VBoxContext) Associate(ctx *hypervisor.VmContext) {
 }
 
 func (vc *VBoxContext) ResumeVm()     {}
-func (vc *VBoxContext) CheckpointVm() {}
-func (vc *VBoxContext) RestoreVm()    {}
 
 func (vc *VBoxContext) MigrateVm(cmd *hypervisor.MigrateVmCommand) {}
 

@@ -1017,7 +1017,7 @@ func Allocate(vmId, requestedIP string, addrOnly bool, maps []pod.UserContainerP
 	}, nil
 }
 
-func AllocateTap() (string, uintptr, error) {
+func AllocateTap() (string, error) {
 	var (
 		req   ifReq
 		errno syscall.Errno
@@ -1025,8 +1025,9 @@ func AllocateTap() (string, uintptr, error) {
 
 	tapFile, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
+	defer tapFile.Close()
 
 	req.Flags = CIFF_TAP | CIFF_NO_PI | CIFF_ONE_QUEUE
 	_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, tapFile.Fd(),
@@ -1034,8 +1035,7 @@ func AllocateTap() (string, uintptr, error) {
 		uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
 		err = fmt.Errorf("create tap device failed\n")
-		tapFile.Close()
-		return "", 0, err
+		return "", err
 	}
 
 	//print fd
@@ -1045,35 +1045,72 @@ func AllocateTap() (string, uintptr, error) {
 	//print device name of tap device
 	fmt.Println("+++++++++++++++++++++++++++++++in allocatetap func tap name is " + device)
 
+    _, _, errno = syscall.Syscall(syscall.SYS_IOCTL, tapFile.Fd(), syscall.TUNSETPERSIST, 1)
+    if errno != 0{
+		err = fmt.Errorf("&&&&&&&&&&&&&&&&&&make tap device persistence failed\n")
+		return "", err
+    }
+
 	tapIface, err := net.InterfaceByName(device)
 	if err != nil {
 		glog.Errorf("get interface by name %s failed %s", device, err)
-		tapFile.Close()
-		return "", 0, err
+		return "", err
 	}
 
 	bIface, err := net.InterfaceByName(BridgeIface)
 	if err != nil {
 		glog.Errorf("get interface by name %s failed", BridgeIface)
-		tapFile.Close()
-		return "", 0, err
+		return "", err
 	}
 
 	err = AddToBridge(tapIface, bIface)
 	if err != nil {
 		glog.Errorf("Add to bridge failed %s %s", BridgeIface, device)
-		tapFile.Close()
-		return "", 0, err
+		return "", err
 	}
 
 	err = NetworkLinkUp(tapIface)
 	if err != nil {
 		glog.Errorf("Link up device %s failed", tapIface)
-		tapFile.Close()
-		return "", 0, err
+		return "", err
 	}
 
-	return device, tapFile.Fd(), nil
+	return device, nil
+}
+
+func DeleteTap(tapName string) (error) {
+	var (
+		req   ifReq
+		errno syscall.Errno
+	)
+
+	tapFile, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+    defer tapFile.Close()
+
+	req.Flags = CIFF_TAP | CIFF_NO_PI
+
+	if tapName != "" {
+		copy(req.Name[:len(req.Name)-1], []byte(tapName))
+	}
+
+	_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, tapFile.Fd(),
+		uintptr(syscall.TUNSETIFF),
+		uintptr(unsafe.Pointer(&req)))
+	if errno != 0 {
+		err = fmt.Errorf("create tap device failed\n")
+		return err
+	}
+
+    _, _, errno = syscall.Syscall(syscall.SYS_IOCTL, tapFile.Fd(), syscall.TUNSETPERSIST, 0)
+    if errno != 0{
+		err = fmt.Errorf("&&&&&&&&&&&&&&&&&&make tap device unpersistence failed\n")
+		return err
+    }
+
+	return nil
 }
 
 func Configure(vmId, requestedIP string, addrOnly bool,

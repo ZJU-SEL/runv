@@ -251,7 +251,7 @@ func qmpCommander(handler chan QmpInteraction, conn *net.UnixConn, session *QmpS
 			switch res.MessageType() {
 			case QMP_RESULT:
 				success = true
-				glog.Infof("********Get QMP result: %s", res.(*QmpResult).Return)
+				glog.Infof("Get QMP result: %s", res.(*QmpResult).Return)
 				break
 			//success
 			case QMP_ERROR:
@@ -330,12 +330,12 @@ func qmpHandler(ctx *hypervisor.VmContext) {
 				handler = nil
 				ctx.Hub <- &hypervisor.VmExit{}
 			} else if ev.Type == "STOP" {
-				glog.Info("got QMP pause event, probally because migrate success, will resume it immediately")
-				ctx.Hub <- &hypervisor.ResumeVmCommand{}
+				glog.Info("got QMP pause event, migration success")
+				ctx.Hub <- &hypervisor.PostMigrationEvent{}
 			}
 		case QMP_TIMEOUT:
 			glog.Info("Migrate Command execute timeout, abort")
-			ctx.Hub <- &hypervisor.MigrateOutTimeoutEvent{}
+			ctx.Hub <- &hypervisor.MigrationTimeoutEvent{}
 		case QMP_INTERNAL_ERROR:
 			res <- msg
 			handler = nil

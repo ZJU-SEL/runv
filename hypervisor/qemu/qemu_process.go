@@ -92,6 +92,7 @@ func (qc *QemuContext) StartQemuIncomingMode(ctx *hypervisor.VmContext, addition
 		glog.Error("******Start Qemu in incoming mode failed ", err.Error())
 		return pid, err
 	}
+    glog.V(1).Infof("Start QEMU success with pid: %d", pid)
 	return pid, nil
 }
 
@@ -107,12 +108,4 @@ func (qc *QemuContext) MigrateVm(cmd *hypervisor.MigrateVmCommand) {
 
 func (qc *QemuContext) ResumeVm() {
 	resumeVm(qc)
-}
-
-func (qc *QemuContext) CheckpointVm() {
-	checkpointVm(qc)
-}
-
-func (qc *QemuContext) RestoreVm() {
-	restoreVm(qc)
 }

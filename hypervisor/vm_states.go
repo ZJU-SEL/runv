@@ -194,7 +194,10 @@ func (ctx *VmContext) attachTty2Container(idx int, cmd *AttachCommand) {
 }
 
 func (ctx *VmContext) startPod() {
+    shareDir := ctx.vmSpec.ShareDir
+    ctx.vmSpec.ShareDir = ""
 	pod, err := json.Marshal(*ctx.vmSpec)
+    ctx.vmSpec.ShareDir = shareDir
 	if err != nil {
 		ctx.Hub <- &InitFailedEvent{
 			Reason: "Generated wrong run profile " + err.Error(),
@@ -362,14 +365,15 @@ func migrateVmHandler(ctx *VmContext, ev VmEvent) bool {
 		ctx.DCtx.MigrateVm(ev.(*MigrateVmCommand))
 	case EVENT_WAIT_MIGRATE_OUT:
 		timer = ev.(*WaitMigrateOutEvent).Timer
-	case COMMAND_RESUME_VM:
-		fmt.Println("Ready to resume the VM")
+    case EVENT_POST_MIGRATION:
 		if timer != nil {
 			timer.Stop()
 		}
 		ctx.reportSuccess("Migrate out successfully", nil)
+	case COMMAND_RESUME_VM:
+		fmt.Println("Migration failed, ready to resume the VM")
 		ctx.DCtx.ResumeVm()
-	case EVENT_MIGRATE_OUT_TIMEOUT:
+	case EVENT_MIGRATION_TIMEOUT:
 		ctx.client <- &types.VmResponse{
 			VmId:  ctx.Id,
 			Code:  types.E_MIGRATE_TIMEOUT,
@@ -502,10 +506,6 @@ func stateRunning(ctx *VmContext, ev VmEvent) {
 
 	} else {
 		switch ev.Event() {
-		case COMMAND_CHECKPOINT_VM:
-			ctx.DCtx.CheckpointVm()
-		case COMMAND_RESTORE_VM:
-			ctx.DCtx.RestoreVm()
 		case COMMAND_STOP_POD:
 			ctx.stopPod()
 			ctx.Become(statePodStopping, "STOPPING")

@@ -66,8 +66,6 @@ type DriverContext interface {
 
 	MigrateVm(cmd *MigrateVmCommand)
 	ResumeVm()
-	CheckpointVm()
-	RestoreVm()
 
 	Close()
 }

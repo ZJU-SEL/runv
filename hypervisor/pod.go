@@ -105,7 +105,7 @@ type VmPod struct {
 	Interfaces []VmNetworkInf `json:"interfaces,omitempty"`
 	Dns        []string       `json:"dns,omitempty"`
 	Routes     []VmRoute      `json:"routes,omitempty"`
-	ShareDir   string         `json:"shareDir"`
+	ShareDir   string         `json:"shareDir,omitempty"`
 }
 
 type RunningContainer struct {

@@ -29,24 +29,6 @@ func resumeVm(qc *QemuContext) {
 	qc.qmp <- &QmpSession{commands: commands, callback: nil}
 }
 
-func checkpointVm(qc *QemuContext) {
-	commands := []*QmpCommand{
-		{Execute: "human-monitor-command", Arguments: map[string]interface{}{
-			"command-line": "savevm oldone",
-		}},
-	}
-	qc.qmp <- &QmpSession{commands: commands, callback: nil}
-}
-
-func restoreVm(qc *QemuContext) {
-	commands := []*QmpCommand{
-		{Execute: "human-monitor-command", Arguments: map[string]interface{}{
-			"command-line": "loadvm oldone",
-		}},
-	}
-	qc.qmp <- &QmpSession{commands: commands, callback: nil}
-}
-
 func migrateVm(qc *QemuContext, IP, Port string) {
 	commands := []*QmpCommand{
 		{
