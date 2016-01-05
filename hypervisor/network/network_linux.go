@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"os"
 	"os/exec"
@@ -15,6 +16,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context"
+	"github.com/coreos/etcd/client"
 	"github.com/hyperhq/runv/hypervisor/network/iptables"
 	"github.com/hyperhq/runv/hypervisor/pod"
 	"github.com/hyperhq/runv/lib/glog"
@@ -198,7 +201,7 @@ func init() {
 	}
 }
 
-func InitNetwork(bIface, bIP string, disable bool) error {
+func InitNetwork(bIface, bIP, etcdIp string, disable bool) error {
 	if bIface == "" {
 		BridgeIface = DefaultBridgeIface
 	} else {
@@ -210,6 +213,18 @@ func InitNetwork(bIface, bIP string, disable bool) error {
 	} else {
 		BridgeIP = bIP
 	}
+
+	cfg := client.Config{
+		Endpoints: []string{etcdIp},
+		Transport: client.DefaultTransport,
+		// set timeout per request to fail fast when the target endpoint is unavailable
+		HeaderTimeoutPerRequest: time.Second,
+	}
+	c, err := client.New(cfg)
+	if err != nil {
+		return err
+	}
+	kapi = client.NewKeysAPI(c)
 
 	disableIptables = disable
 	if disableIptables {
@@ -928,7 +943,7 @@ func Allocate(vmId, requestedIP string, addrOnly bool, maps []pod.UserContainerP
 		errno syscall.Errno
 	)
 
-	ip, err := IpAllocator.RequestIP(BridgeIPv4Net, net.ParseIP(requestedIP))
+	ip, err := getIp(net.ParseIP(requestedIP))
 	if err != nil {
 		return nil, err
 	}
@@ -1017,13 +1032,19 @@ func Allocate(vmId, requestedIP string, addrOnly bool, maps []pod.UserContainerP
 	}, nil
 }
 
-func AllocateTap() (string, error) {
+func AllocateTap(requsetedIp string, maps []pod.UserContainerPort) (string, error) {
 	var (
 		req   ifReq
 		errno syscall.Errno
 	)
 
-	tapFile, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
+	err := SetupPortMaps(requsetedIp, maps)
+	if err != nil {
+		glog.Errorf("Setup Port Map failed %s", err)
+		return nil, err
+	}
+
+	tapFile, err = os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
 	if err != nil {
 		return "", err
 	}
@@ -1037,19 +1058,16 @@ func AllocateTap() (string, error) {
 		err = fmt.Errorf("create tap device failed\n")
 		return "", err
 	}
+	glog.V(1).Infof("the new tap device is created. tapfd is %d", tapFile.Fd())
 
-	//print fd
-	fmt.Println("+++++++++++++++++++++++++++++++tapfd is %d", tapFile.Fd())
 	device := strings.Trim(string(req.Name[:]), "\x00")
+	glog.V(1).Infof("tap name is ", device)
 
-	//print device name of tap device
-	fmt.Println("+++++++++++++++++++++++++++++++in allocatetap func tap name is " + device)
-
-    _, _, errno = syscall.Syscall(syscall.SYS_IOCTL, tapFile.Fd(), syscall.TUNSETPERSIST, 1)
-    if errno != 0{
+	_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, tapFile.Fd(), syscall.TUNSETPERSIST, 1)
+	if errno != 0 {
 		err = fmt.Errorf("&&&&&&&&&&&&&&&&&&make tap device persistence failed\n")
 		return "", err
-    }
+	}
 
 	tapIface, err := net.InterfaceByName(device)
 	if err != nil {
@@ -1078,7 +1096,124 @@ func AllocateTap() (string, error) {
 	return device, nil
 }
 
-func DeleteTap(tapName string) (error) {
+func initIp() {
+	last := big.NewInt(0)
+	begin := big.NewInt(0)
+	end := big.NewInt(0)
+
+	ipLast := net.IPv4(192, 168, 123, 254)
+	ipBegin := net.IPv4(192, 168, 123, 2)
+	ipEnd := net.IPv4(192, 168, 123, 254)
+
+	last.SetBytes(ipLast.To4())
+	begin.SetBytes(ipBegin.To4())
+	end.SetBytes(ipEnd.To4())
+
+	kapi.Set(context.Background(), "last", last.String(), nil)
+	kapi.Set(context.Background(), "begin", begin.String(), nil)
+	kapi.Set(context.Background(), "end", end.String(), nil)
+
+	x := begin
+	y := big.NewInt(1)
+
+	for i := 1; i < 253; i++ {
+		fmt.Println(x.String())
+		resp, err := kapi.Set(context.Background(), x.String(), "0", nil)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			// print common key info
+			log.Printf("Set is done. Metadata is %q\n", resp)
+		}
+		x = x.Add(x, y)
+	}
+}
+
+func getIp(ip net.IP) (net.IP, error) {
+	var mutex int
+
+	resp, err := kapi.Get(context.Background(), "last", nil)
+	laststring := strings.TrimLeft(resp.Node.Value, "/")
+	last := big.NewInt(0)
+	last.SetString(laststring, 10)
+
+	resp, err = kapi.Get(context.Background(), "begin", nil)
+	beginstring := strings.TrimLeft(resp.Node.Value, "/")
+	begin := big.NewInt(0)
+	begin.SetString(beginstring, 10)
+
+	resp, err = kapi.Get(context.Background(), "end", nil)
+	endstring := strings.TrimLeft(resp.Node.Value, "/")
+	end := big.NewInt(0)
+	end.SetString(endstring, 10)
+
+	now := last
+	if ip != nil {
+		requstedIp := big.NewInt(0)
+		requstedIp.SetBytes(ip.To4())
+		resp, err = kapi.Get(context.Background(), requstedIp.String(), nil)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			mutex, err = strconv.Atoi(resp.Node.Value)
+			mutex = mutex + 1
+			resp, err = kapi.Update(context.Background(), requstedIp.String(), strconv.Itoa(mutex))
+		}
+		return ip, nil
+	}
+	for {
+		if last.Cmp(end) == 0 {
+			now = begin
+		}
+		resp, err = kapi.Get(context.Background(), now.String(), nil)
+
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			if resp.Node.Value == "0" {
+				fmt.Println(now)
+				_, err = kapi.Update(context.Background(), now.String(), "1")
+				ipstring := strings.TrimLeft(resp.Node.Key, "/")
+				ipint := big.NewInt(0)
+				ipint.SetString(ipstring, 10)
+
+				last = now
+				_, err = kapi.Update(context.Background(), "last", last.String())
+
+				return net.IP(ipint.Bytes()), nil
+			}
+		}
+		now = last.Add(last, big.NewInt(1))
+	}
+}
+
+func cleanUpIp() {
+	last := big.NewInt(0)
+	ipLast := net.IPv4(192, 168, 123, 254)
+	last.SetBytes(ipLast.To4())
+	kapi.Update(context.Background(), "last", last.String())
+
+	resp, err := kapi.Get(context.Background(), "begin", nil)
+	beginstring := strings.TrimLeft(resp.Node.Value, "/")
+	begin := big.NewInt(0)
+	begin.SetString(beginstring, 10)
+	x := begin
+	y := big.NewInt(1)
+
+	for i := 1; i < 253; i++ {
+		fmt.Println(x.String())
+		resp, err = kapi.Update(context.Background(), x.String(), "0")
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			// print common key info
+			log.Printf("Set is done. Metadata is %q\n", resp)
+		}
+		x = x.Add(x, y)
+	}
+}
+
+func DeleteTap(tapName string) error {
 	var (
 		req   ifReq
 		errno syscall.Errno
@@ -1088,7 +1223,7 @@ func DeleteTap(tapName string) (error) {
 	if err != nil {
 		return err
 	}
-    defer tapFile.Close()
+	defer tapFile.Close()
 
 	req.Flags = CIFF_TAP | CIFF_NO_PI
 
@@ -1104,11 +1239,11 @@ func DeleteTap(tapName string) (error) {
 		return err
 	}
 
-    _, _, errno = syscall.Syscall(syscall.SYS_IOCTL, tapFile.Fd(), syscall.TUNSETPERSIST, 0)
-    if errno != 0{
+	_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, tapFile.Fd(), syscall.TUNSETPERSIST, 0)
+	if errno != 0 {
 		err = fmt.Errorf("&&&&&&&&&&&&&&&&&&make tap device unpersistence failed\n")
 		return err
-    }
+	}
 
 	return nil
 }

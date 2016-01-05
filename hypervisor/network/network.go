@@ -30,4 +30,5 @@ var (
 	BridgeIPv4Net *net.IPNet
 	BridgeIface   string
 	BridgeIP      string
+	kapi          client.KeysAPI
 )
