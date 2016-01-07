@@ -1120,10 +1120,10 @@ func initIp() {
 		fmt.Println(x.String())
 		resp, err := kapi.Set(context.Background(), x.String(), "0", nil)
 		if err != nil {
-			log.Fatal(err)
+			glog.Errorf(err)
 		} else {
 			// print common key info
-			log.Printf("Set is done. Metadata is %q\n", resp)
+			glog.V(1).Infof("Set is done. Metadata is %q\n", resp)
 		}
 		x = x.Add(x, y)
 	}
@@ -1153,7 +1153,7 @@ func getIp(ip net.IP) (net.IP, error) {
 		requstedIp.SetBytes(ip.To4())
 		resp, err = kapi.Get(context.Background(), requstedIp.String(), nil)
 		if err != nil {
-			log.Fatal(err)
+			glog.Errorf(err)
 		} else {
 			mutex, err = strconv.Atoi(resp.Node.Value)
 			mutex = mutex + 1
@@ -1168,7 +1168,7 @@ func getIp(ip net.IP) (net.IP, error) {
 		resp, err = kapi.Get(context.Background(), now.String(), nil)
 
 		if err != nil {
-			log.Fatal(err)
+			glog.Errorf(err)
 		} else {
 			if resp.Node.Value == "0" {
 				fmt.Println(now)
@@ -1204,10 +1204,10 @@ func cleanUpIp() {
 		fmt.Println(x.String())
 		resp, err = kapi.Update(context.Background(), x.String(), "0")
 		if err != nil {
-			log.Fatal(err)
+			glog.Errorf(err)
 		} else {
 			// print common key info
-			log.Printf("Set is done. Metadata is %q\n", resp)
+			glog.V(1).Infof("Update is done. Metadata is %q\n", resp)
 		}
 		x = x.Add(x, y)
 	}

@@ -41,6 +41,10 @@
 			"ImportPath": "github.com/opencontainers/specs",
 			"Comment": "v0.1.1-66-ge71b6dd",
 			"Rev": "e71b6dd44123ccc70ec90ffbee13831dc453c21d"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "7dbad50ab5b31073856416cdcfeb2796d682f844"
 		}
 	]
 }
