@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+    "time"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -16,7 +17,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context"
+	"golang.org/x/net/context"
 	"github.com/coreos/etcd/client"
 	"github.com/hyperhq/runv/hypervisor/network/iptables"
 	"github.com/hyperhq/runv/hypervisor/pod"
@@ -1041,10 +1042,10 @@ func AllocateTap(requsetedIp string, maps []pod.UserContainerPort) (string, erro
 	err := SetupPortMaps(requsetedIp, maps)
 	if err != nil {
 		glog.Errorf("Setup Port Map failed %s", err)
-		return nil, err
+        return "", err
 	}
 
-	tapFile, err = os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
+    tapFile, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
 	if err != nil {
 		return "", err
 	}
@@ -1120,7 +1121,7 @@ func initIp() {
 		fmt.Println(x.String())
 		resp, err := kapi.Set(context.Background(), x.String(), "0", nil)
 		if err != nil {
-			glog.Errorf(err)
+			glog.Errorf(err.Error())
 		} else {
 			// print common key info
 			glog.V(1).Infof("Set is done. Metadata is %q\n", resp)
@@ -1153,7 +1154,7 @@ func getIp(ip net.IP) (net.IP, error) {
 		requstedIp.SetBytes(ip.To4())
 		resp, err = kapi.Get(context.Background(), requstedIp.String(), nil)
 		if err != nil {
-			glog.Errorf(err)
+			glog.Errorf(err.Error())
 		} else {
 			mutex, err = strconv.Atoi(resp.Node.Value)
 			mutex = mutex + 1
@@ -1168,7 +1169,7 @@ func getIp(ip net.IP) (net.IP, error) {
 		resp, err = kapi.Get(context.Background(), now.String(), nil)
 
 		if err != nil {
-			glog.Errorf(err)
+			glog.Errorf(err.Error())
 		} else {
 			if resp.Node.Value == "0" {
 				fmt.Println(now)
@@ -1204,7 +1205,7 @@ func cleanUpIp() {
 		fmt.Println(x.String())
 		resp, err = kapi.Update(context.Background(), x.String(), "0")
 		if err != nil {
-			glog.Errorf(err)
+			glog.Errorf(err.Error())
 		} else {
 			// print common key info
 			glog.V(1).Infof("Update is done. Metadata is %q\n", resp)
@@ -1257,7 +1258,7 @@ func Configure(vmId, requestedIP string, addrOnly bool,
 
 	ip, ipnet, err := net.ParseCIDR(config.Ip)
 	if err != nil {
-		glog.Errorf("Parse config IP failed %s", err)
+		glog.Errorf("Parse config IP failed %s", err.Error())
 		return nil, err
 	}
 
@@ -1266,7 +1267,7 @@ func Configure(vmId, requestedIP string, addrOnly bool,
 
 	err = SetupPortMaps(ip.String(), maps)
 	if err != nil {
-		glog.Errorf("Setup Port Map failed %s", err)
+		glog.Errorf("Setup Port Map failed %s", err.Error())
 		return nil, err
 	}
 

@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/coreos/etcd/client"
 	"github.com/hyperhq/runv/hypervisor/network/ipallocator"
 	"github.com/hyperhq/runv/hypervisor/network/portmapper"
 )
