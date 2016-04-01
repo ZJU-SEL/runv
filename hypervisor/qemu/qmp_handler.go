@@ -29,6 +29,7 @@ type QmpInternalError struct{ cause string }
 type QmpSession struct {
 	commands []*QmpCommand
 	callback hypervisor.VmEvent
+	flag     int
 }
 
 type QmpFinish struct {
@@ -66,6 +67,10 @@ type QmpEvent struct {
 	Data      interface{}  `json:"data,omitempty"`
 }
 
+type QmpMigrating struct {
+	Timer *time.Timer
+}
+
 func (qmp *QmpInit) MessageType() int          { return QMP_INIT }
 func (qmp *QmpQuit) MessageType() int          { return QMP_QUIT }
 func (qmp *QmpTimeout) MessageType() int       { return QMP_TIMEOUT }
@@ -80,6 +85,8 @@ func (qmp *QmpSession) Finish() *QmpFinish {
 func (qmp *QmpFinish) MessageType() int { return QMP_FINISH }
 
 func (qmp *QmpResult) MessageType() int { return QMP_RESULT }
+
+func (qmp *QmpMigrating) MessageType() int { return QMP_MIGRATING }
 
 func (qmp *QmpError) MessageType() int { return QMP_ERROR }
 func (qmp *QmpError) Finish(callback hypervisor.VmEvent) *QmpFinish {
@@ -287,8 +294,12 @@ func qmpHandler(ctx *hypervisor.VmContext) {
 	var handler msgHandler = nil
 	var conn *net.UnixConn = nil
 
+	//FIXME should consider sync
+
 	buf := []*QmpSession{}
 	res := make(chan QmpInteraction, 128)
+
+	var migrating func(msg QmpInteraction)
 
 	loop := func(msg QmpInteraction) {
 		switch msg.MessageType() {
@@ -297,6 +308,11 @@ func qmpHandler(ctx *hypervisor.VmContext) {
 			buf = append(buf, msg.(*QmpSession))
 			if len(buf) == 1 {
 				go qmpCommander(qc.qmp, conn, msg.(*QmpSession), res)
+			}
+			//FIXME
+			if msg.(*QmpSession).flag == 1 {
+				glog.Infof("Get migrate command, change to migrating loop")
+				handler = migrating
 			}
 		case QMP_FINISH:
 			glog.Infof("session finished, buffer size %d", len(buf))
@@ -329,9 +345,51 @@ func qmpHandler(ctx *hypervisor.VmContext) {
 				glog.Info("got QMP shutdown event, quit...")
 				handler = nil
 				ctx.Hub <- &hypervisor.VmExit{}
+			} else if ev.Type == QMP_EVENT_STOP {
+				glog.V(3).Infof("got QMP stop event, restore qemu vm success...")
+				qc.qmp <- &QmpSession{
+					commands: []*QmpCommand{
+						{Execute: "cont", Arguments: map[string]interface{}{}},
+					},
+					callback: nil,
+				}
+			}
+		case QMP_MIGRATING:
+			glog.Infof("Get migrate command, change to migrating loop")
+			handler = migrating
+		case QMP_INTERNAL_ERROR:
+			res <- msg
+			handler = nil
+			glog.Info("QMP handler quit as received ", msg.(*QmpInternalError).cause)
+			ctx.Hub <- &hypervisor.Interrupted{Reason: msg.(*QmpInternalError).cause}
+		case QMP_QUIT:
+			handler = nil
+
+		}
+	}
+
+	migrating = func(msg QmpInteraction) {
+		switch msg.MessageType() {
+		case QMP_SESSION:
+			glog.Info("got new session")
+			buf = append(buf, msg.(*QmpSession))
+			if len(buf) == 1 {
+				go qmpCommander(qc.qmp, conn, msg.(*QmpSession), res)
+			}
+		case QMP_RESULT, QMP_ERROR:
+			res <- msg
+		case QMP_EVENT:
+			ev := msg.(*QmpEvent)
+			glog.V(1).Info("got QMP event ", ev.Type)
+			if ev.Type == QMP_EVENT_SHUTDOWN {
+				glog.Info("got QMP shutdown event, quit...")
+				handler = nil
+				ctx.Hub <- &hypervisor.VmExit{}
 			} else if ev.Type == "STOP" {
 				glog.Info("got QMP pause event, migration success")
 				ctx.Hub <- &hypervisor.PostMigrationEvent{}
+				glog.V(1).Infof("exit migrating loop, go into main QMP loop")
+				handler = loop
 			}
 		case QMP_TIMEOUT:
 			glog.Info("Migrate Command execute timeout, abort")
@@ -341,9 +399,6 @@ func qmpHandler(ctx *hypervisor.VmContext) {
 			handler = nil
 			glog.Info("QMP handler quit as received ", msg.(*QmpInternalError).cause)
 			ctx.Hub <- &hypervisor.Interrupted{Reason: msg.(*QmpInternalError).cause}
-		case QMP_QUIT:
-			handler = nil
-
 		}
 	}
 

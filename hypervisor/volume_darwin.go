@@ -64,6 +64,11 @@ func UmountDMDevice(deviceFullPath, name string, hub chan VmEvent) {
 	hub <- &BlockdevRemovedEvent{Name: name, Success: true}
 }
 
+func UmountRbdDevice(deviceFullPath, name string, hub chan VmEvent) {
+	// After umount that device, we need to delete it
+	hub <- &BlockdevRemovedEvent{Name: name, Success: true}
+}
+
 func supportAufs() bool {
 	return false
 }

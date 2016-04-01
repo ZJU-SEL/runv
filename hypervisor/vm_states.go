@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+var timer *time.Timer = nil
+
 func (ctx *VmContext) timedKill(seconds int) {
 	ctx.timer = time.AfterFunc(time.Duration(seconds)*time.Second, func() {
 		if ctx != nil && ctx.handler != nil {
@@ -34,6 +36,7 @@ func (ctx *VmContext) reclaimDevice() {
 	ctx.releaseOverlayDir()
 	ctx.releaseAufsDir()
 	ctx.removeDMDevice()
+	ctx.removeRbdDevice()
 	ctx.releaseNetwork()
 }
 
@@ -194,10 +197,10 @@ func (ctx *VmContext) attachTty2Container(idx int, cmd *AttachCommand) {
 }
 
 func (ctx *VmContext) startPod() {
-    shareDir := ctx.vmSpec.ShareDir
-    ctx.vmSpec.ShareDir = ""
+	shareDir := ctx.vmSpec.ShareDir
+	ctx.vmSpec.ShareDir = ""
 	pod, err := json.Marshal(*ctx.vmSpec)
-    ctx.vmSpec.ShareDir = shareDir
+	ctx.vmSpec.ShareDir = shareDir
 	if err != nil {
 		ctx.Hub <- &InitFailedEvent{
 			Reason: "Generated wrong run profile " + err.Error(),
@@ -358,27 +361,31 @@ func initFailureHandler(ctx *VmContext, ev VmEvent) bool {
 
 func migrateVmHandler(ctx *VmContext, ev VmEvent) bool {
 	processed := true
-	var timer *time.Timer
 	switch ev.Event() {
 	case COMMAND_MIGRATE_VM:
 		fmt.Println("Now in vm_states#stateRunning")
 		ctx.DCtx.MigrateVm(ev.(*MigrateVmCommand))
+		ctx.Become(stateMigrating, "MIGRATING")
 	case EVENT_WAIT_MIGRATE_OUT:
-		timer = ev.(*WaitMigrateOutEvent).Timer
-    case EVENT_POST_MIGRATION:
-		if timer != nil {
+		//FIXME collision with other migration
+		ctx.MigrateTimer = ev.(*WaitMigrateOutEvent).Timer
+	case EVENT_POST_MIGRATION:
+		if ctx.MigrateTimer != nil {
 			timer.Stop()
+			ctx.MigrateTimer = nil
 		}
 		ctx.reportSuccess("Migrate out successfully", nil)
 	case COMMAND_RESUME_VM:
 		fmt.Println("Migration failed, ready to resume the VM")
 		ctx.DCtx.ResumeVm()
+		ctx.Become(stateRunning, "RUNNING")
 	case EVENT_MIGRATION_TIMEOUT:
 		ctx.client <- &types.VmResponse{
 			VmId:  ctx.Id,
 			Code:  types.E_MIGRATE_TIMEOUT,
 			Cause: "timeout, migrate failed",
 		}
+		ctx.Become(stateRunning, "RUNNING")
 	default:
 		processed = false
 	}
@@ -503,7 +510,6 @@ func stateRunning(ctx *VmContext, ev VmEvent) {
 		ctx.shutdownVM(true, "Fail during reconnect to a running pod")
 		ctx.Become(stateTerminating, "TERMINATING")
 	} else if processed := migrateVmHandler(ctx, ev); processed {
-
 	} else {
 		switch ev.Event() {
 		case COMMAND_STOP_POD:
@@ -562,6 +568,48 @@ func stateRunning(ctx *VmContext, ev VmEvent) {
 			ctx.reportPodIP()
 		default:
 			glog.Warning("got unexpected event during pod running")
+		}
+	}
+}
+
+func stateMigrating(ctx *VmContext, ev VmEvent) {
+	if processed := commonStateHandler(ctx, ev, false); processed {
+	} else if processed := initFailureHandler(ctx, ev); processed {
+		ctx.shutdownVM(true, "Fail during reconnect to a running pod")
+		ctx.Become(stateTerminating, "TERMINATING")
+	} else if processed := migrateVmHandler(ctx, ev); processed {
+	} else {
+		switch ev.Event() {
+		case COMMAND_ACK:
+			ack := ev.(*CommandAck)
+			glog.V(1).Infof("[running] got init ack to %d", ack.reply)
+
+			if ack.reply == INIT_READFILE {
+				ctx.reportFile(ack.reply, ack.msg, false)
+				glog.Infof("Get ack for read data: %s", string(ack.msg))
+			} else if ack.reply == INIT_WRITEFILE {
+				ctx.reportFile(ack.reply, ack.msg, false)
+				glog.Infof("Get ack for write data: %s", string(ack.msg))
+			}
+		case ERROR_CMD_FAIL:
+			ack := ev.(*CommandError)
+			if ack.context.Code == INIT_EXECCMD {
+				cmd := ExecCommand{}
+				json.Unmarshal(ack.context.Message, &cmd)
+				ctx.ptys.Close(ctx, cmd.Sequence)
+				glog.V(0).Infof("Exec command %s on session %d failed", cmd.Command[0], cmd.Sequence)
+			} else if ack.context.Code == INIT_READFILE {
+				ctx.reportFile(ack.context.Code, ack.msg, true)
+				glog.Infof("Get error for read data: %s", string(ack.msg))
+			} else if ack.context.Code == INIT_WRITEFILE {
+				ctx.reportFile(ack.context.Code, ack.msg, true)
+				glog.Infof("Get error for write data: %s", string(ack.msg))
+			}
+
+		case COMMAND_GET_POD_IP:
+			ctx.reportPodIP()
+		default:
+			glog.Warning("got unexpected event during pod migrating")
 		}
 	}
 }

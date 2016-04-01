@@ -30,6 +30,7 @@ func resumeVm(qc *QemuContext) {
 }
 
 func migrateVm(qc *QemuContext, IP, Port string) {
+	//qc.qmp <- &QmpMigrating{}
 	commands := []*QmpCommand{
 		{
 			Execute: "human-monitor-command",
@@ -38,15 +39,15 @@ func migrateVm(qc *QemuContext, IP, Port string) {
 			},
 		},
 	}
-	timer := time.AfterFunc(50*time.Second, func() {
-		glog.Warning("Migrate Out Timeout.")
-		qc.qmp <- &QmpTimeout{}
-	})
 	qc.qmp <- &QmpSession{
 		commands: commands,
 		callback: &hypervisor.WaitMigrateOutEvent{
-			Timer: timer,
+			Timer: time.AfterFunc(50*time.Second, func() {
+				glog.Warning("Migrate Out Timeout.")
+				qc.qmp <- &QmpTimeout{}
+			}),
 		},
+		flag: 1,
 	}
 }
 

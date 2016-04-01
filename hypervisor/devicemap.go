@@ -370,14 +370,25 @@ func (ctx *VmContext) onContainerRemoved(c *ContainerUnmounted) bool {
 		glog.V(1).Infof("container %d umounted", c.Index)
 		delete(ctx.progress.deleting.containers, c.Index)
 	}
-	if ctx.vmSpec.Containers[c.Index].Fstype != "" {
-		for name, image := range ctx.devices.imageMap {
-			if image.pos == c.Index {
-				glog.V(1).Info("need remove image dm file", image.info.filename)
-				ctx.progress.deleting.blockdevs[name] = true
-				go UmountDMDevice(image.info.filename, name, ctx.Hub)
-			}
-		}
+    if ctx.vmSpec.Containers[c.Index].Fstype != ""{
+        //FIXME simplely consider rbd image path should contain \rbd\ substring
+        if strings.Contains(ctx.vmSpec.Containers[c.Index].Image, "/rbd/"){
+            for name, image := range ctx.devices.imageMap {
+                if image.pos == c.Index {
+				    glog.V(1).Info("need remove image rbd file", image.info.filename)
+				    ctx.progress.deleting.blockdevs[name] = true
+			    	go UmountRbdDevice(image.info.filename, name, ctx.Hub)
+                }
+            }
+        }else{
+		    for name, image := range ctx.devices.imageMap {
+			    if image.pos == c.Index {
+				    glog.V(1).Info("need remove image dm file", image.info.filename)
+				    ctx.progress.deleting.blockdevs[name] = true
+			    	go UmountDMDevice(image.info.filename, name, ctx.Hub)
+			    }
+		    }
+        }
 	}
 
 	return c.Success
@@ -426,7 +437,7 @@ func (ctx *VmContext) releaseVolumeDir() {
 
 func (ctx *VmContext) removeDMDevice() {
 	for name, container := range ctx.devices.imageMap {
-		if container.info.fstype != "dir" {
+		if container.info.fstype != "dir" && !strings.Contains(container.info.filename, "rbd"){
 			glog.V(1).Info("need remove dm file", container.info.filename)
 			ctx.progress.deleting.blockdevs[name] = true
 			go UmountDMDevice(container.info.filename, name, ctx.Hub)
@@ -437,6 +448,24 @@ func (ctx *VmContext) removeDMDevice() {
 			glog.V(1).Info("need remove dm file ", vol.info.filename)
 			ctx.progress.deleting.blockdevs[name] = true
 			go UmountDMDevice(vol.info.filename, name, ctx.Hub)
+		}
+	}
+}
+
+func (ctx *VmContext) removeRbdDevice() {
+	for name, container := range ctx.devices.imageMap {
+		if container.info.fstype != "dir" && strings.Contains(container.info.filename, "rbd"){
+			glog.V(1).Info("need remove rbd file", container.info.filename)
+			ctx.progress.deleting.blockdevs[name] = true
+			go UmountRbdDevice(container.info.filename, name, ctx.Hub)
+		}
+	}
+    //FIXME should fix as container image
+	for name, vol := range ctx.devices.volumeMap {
+		if vol.info.fstype != "" {
+			glog.V(1).Info("need remove rbd file ", vol.info.filename)
+			ctx.progress.deleting.blockdevs[name] = true
+			go UmountRbdDevice(vol.info.filename, name, ctx.Hub)
 		}
 	}
 }

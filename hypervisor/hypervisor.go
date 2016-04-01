@@ -4,6 +4,7 @@ import (
 	"github.com/hyperhq/runv/hypervisor/network"
 	"github.com/hyperhq/runv/hypervisor/types"
 	"github.com/hyperhq/runv/lib/glog"
+    "github.com/coreos/etcd/client"
 
 	"sync"
 )
@@ -103,12 +104,12 @@ func VmAssociate(vmId string, hub chan VmEvent, client chan *types.VmResponse,
 	context.loop()
 }
 
-func InitNetwork(bIface, bIP, EtcdIp string, disableIptables bool) error {
+func InitNetwork(bIface, bIP string, kapi *client.KeysAPI, disableIptables bool) error {
 	if HDriver.BuildinNetwork() {
 		return HDriver.InitNetwork(bIface, bIP)
 	}
 
-	return network.InitNetwork(bIface, bIP, EtcdIp, disableIptables)
+	return network.InitNetwork(bIface, bIP, kapi, disableIptables)
 }
 
 func SupportLazyMode() bool {

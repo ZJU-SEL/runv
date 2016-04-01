@@ -60,9 +60,10 @@ type VmContext struct {
 	progress *processingList
 
 	// Internal Helper
-	handler stateHandler
-	current string
-	timer   *time.Timer
+	handler      stateHandler
+	current      string
+	timer        *time.Timer
+	MigrateTimer *time.Timer
 
 	lock *sync.Mutex //protect update of context
 	wg   *sync.WaitGroup

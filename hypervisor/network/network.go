@@ -4,7 +4,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/coreos/etcd/client"
 	"github.com/hyperhq/runv/hypervisor/network/ipallocator"
 	"github.com/hyperhq/runv/hypervisor/network/portmapper"
 )
@@ -31,5 +30,4 @@ var (
 	BridgeIPv4Net *net.IPNet
 	BridgeIface   string
 	BridgeIP      string
-	kapi          client.KeysAPI
 )

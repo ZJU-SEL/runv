@@ -119,6 +119,26 @@ func UmountDMDevice(deviceFullPath, name string, hub chan VmEvent) {
 	hub <- &BlockdevRemovedEvent{Name: name, Success: success}
 }
 
+func UmountRbdDevice(deviceFullPath, name string, hub chan VmEvent) {
+	args := fmt.Sprintf("rbd unmap %s", deviceFullPath)
+	cmd := exec.Command("/bin/sh", "-c", args)
+	success := true
+	if output, err := cmd.CombinedOutput(); err != nil {
+		glog.Warningf("Cannot umount device %s: %s, %s", deviceFullPath, err.Error(), output)
+		// retry
+		cmd := exec.Command("/bin/sh", "-c", args)
+		if err := cmd.Run(); err != nil {
+			success = false
+		}
+	} else {
+		// Command was successful
+		success = true
+	}
+
+	// After umount that device, we need to delete it
+	hub <- &BlockdevRemovedEvent{Name: name, Success: success}
+}
+
 func supportAufs() bool {
 	f, err := os.Open("/proc/filesystems")
 	if err != nil {

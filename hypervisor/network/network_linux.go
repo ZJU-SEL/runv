@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"net"
 	"os"
-    "time"
+	//    "time"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -17,11 +17,11 @@ import (
 	"syscall"
 	"unsafe"
 
-	"golang.org/x/net/context"
 	"github.com/coreos/etcd/client"
 	"github.com/hyperhq/runv/hypervisor/network/iptables"
 	"github.com/hyperhq/runv/hypervisor/pod"
 	"github.com/hyperhq/runv/lib/glog"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -39,6 +39,7 @@ var (
 	native          binary.ByteOrder
 	nextSeqNr       uint32
 	disableIptables bool
+	kapi            client.KeysAPI
 )
 
 type ifReq struct {
@@ -202,31 +203,33 @@ func init() {
 	}
 }
 
-func InitNetwork(bIface, bIP, etcdIp string, disable bool) error {
+func InitNetwork(bIface, bIP string, keyapi *client.KeysAPI, disable bool) error {
 	if bIface == "" {
 		BridgeIface = DefaultBridgeIface
 	} else {
 		BridgeIface = bIface
 	}
 
+	kapi = *keyapi
 	if bIP == "" {
 		BridgeIP = DefaultBridgeIP
 	} else {
 		BridgeIP = bIP
 	}
 
-	cfg := client.Config{
-		Endpoints: []string{etcdIp},
-		Transport: client.DefaultTransport,
-		// set timeout per request to fail fast when the target endpoint is unavailable
-		HeaderTimeoutPerRequest: time.Second,
-	}
-	c, err := client.New(cfg)
-	if err != nil {
-		return err
-	}
-	kapi = client.NewKeysAPI(c)
-
+	/*
+		cfg := client.Config{
+			Endpoints: []string{etcdIp},
+			Transport: client.DefaultTransport,
+			// set timeout per request to fail fast when the target endpoint is unavailable
+			HeaderTimeoutPerRequest: time.Second,
+		}
+		c, err := client.New(cfg)
+		if err != nil {
+			return err
+		}
+		kapi = client.NewKeysAPI(c)
+	*/
 	disableIptables = disable
 	if disableIptables {
 		glog.V(1).Info("Iptables is disabled")
@@ -1042,10 +1045,10 @@ func AllocateTap(requsetedIp string, maps []pod.UserContainerPort) (string, erro
 	err := SetupPortMaps(requsetedIp, maps)
 	if err != nil {
 		glog.Errorf("Setup Port Map failed %s", err)
-        return "", err
+		return "", err
 	}
 
-    tapFile, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
+	tapFile, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
 	if err != nil {
 		return "", err
 	}
@@ -1134,16 +1137,29 @@ func getIp(ip net.IP) (net.IP, error) {
 	var mutex int
 
 	resp, err := kapi.Get(context.Background(), "last", nil)
+	if err != nil {
+		initIp()
+		resp, err = kapi.Get(context.Background(), "last", nil)
+		if err != nil {
+			return nil, err
+		}
+	}
 	laststring := strings.TrimLeft(resp.Node.Value, "/")
 	last := big.NewInt(0)
 	last.SetString(laststring, 10)
 
 	resp, err = kapi.Get(context.Background(), "begin", nil)
+	if err != nil {
+		return nil, err
+	}
 	beginstring := strings.TrimLeft(resp.Node.Value, "/")
 	begin := big.NewInt(0)
 	begin.SetString(beginstring, 10)
 
 	resp, err = kapi.Get(context.Background(), "end", nil)
+	if err != nil {
+		return nil, err
+	}
 	endstring := strings.TrimLeft(resp.Node.Value, "/")
 	end := big.NewInt(0)
 	end.SetString(endstring, 10)

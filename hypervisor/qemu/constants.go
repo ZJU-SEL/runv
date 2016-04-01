@@ -10,11 +10,13 @@ const (
 	QMP_TIMEOUT
 	QMP_RESULT
 	QMP_ERROR
+    QMP_MIGRATING
 )
 
 const (
 	QmpSockName = "qmp.sock"
 
 	QMP_EVENT_SHUTDOWN = "SHUTDOWN"
+    QMP_EVENT_STOP = "STOP"
 	QMP_EVENT_PAUSE    = "PAUSE"
 )
