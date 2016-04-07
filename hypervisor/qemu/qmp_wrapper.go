@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/hyperhq/runv/hypervisor"
 	"github.com/hyperhq/runv/lib/glog"
@@ -42,10 +41,10 @@ func migrateVm(qc *QemuContext, IP, Port string) {
 	qc.qmp <- &QmpSession{
 		commands: commands,
 		callback: &hypervisor.WaitMigrateOutEvent{
-			Timer: time.AfterFunc(50*time.Second, func() {
-				glog.Warning("Migrate Out Timeout.")
-				qc.qmp <- &QmpTimeout{}
-			}),
+		/*Timer: time.AfterFunc(50*time.Second, func() {
+			glog.Warning("Migrate Out Timeout.")
+			qc.qmp <- &QmpTimeout{}
+		}),*/
 		},
 		flag: 1,
 	}

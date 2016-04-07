@@ -368,10 +368,14 @@ func migrateVmHandler(ctx *VmContext, ev VmEvent) bool {
 		ctx.Become(stateMigrating, "MIGRATING")
 	case EVENT_WAIT_MIGRATE_OUT:
 		//FIXME collision with other migration
-		ctx.MigrateTimer = ev.(*WaitMigrateOutEvent).Timer
+		//ctx.MigrateTimer = ev.(*WaitMigrateOutEvent).Timer
+		ctx.MigrateTimer = time.AfterFunc(50*time.Second, func() {
+			glog.Warning("Migrate Out Timeout.")
+			ctx.DCtx.MigrateTimeout()
+		})
 	case EVENT_POST_MIGRATION:
 		if ctx.MigrateTimer != nil {
-			timer.Stop()
+			ctx.MigrateTimer.Stop()
 			ctx.MigrateTimer = nil
 		}
 		ctx.reportSuccess("Migrate out successfully", nil)
@@ -574,6 +578,10 @@ func stateRunning(ctx *VmContext, ev VmEvent) {
 
 func stateMigrating(ctx *VmContext, ev VmEvent) {
 	if processed := commonStateHandler(ctx, ev, false); processed {
+		if ev.Event() == COMMAND_SHUTDOWN {
+			ctx.reclaimDevice()
+			ctx.tryClose()
+		}
 	} else if processed := initFailureHandler(ctx, ev); processed {
 		ctx.shutdownVM(true, "Fail during reconnect to a running pod")
 		ctx.Become(stateTerminating, "TERMINATING")

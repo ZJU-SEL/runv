@@ -124,7 +124,7 @@ func UmountRbdDevice(deviceFullPath, name string, hub chan VmEvent) {
 	cmd := exec.Command("/bin/sh", "-c", args)
 	success := true
 	if output, err := cmd.CombinedOutput(); err != nil {
-		glog.Warningf("Cannot umount device %s: %s, %s", deviceFullPath, err.Error(), output)
+		glog.Warningf("Cannot unmap device %s: %s, %s", deviceFullPath, err.Error(), output)
 		// retry
 		cmd := exec.Command("/bin/sh", "-c", args)
 		if err := cmd.Run(); err != nil {

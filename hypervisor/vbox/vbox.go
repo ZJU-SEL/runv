@@ -164,7 +164,8 @@ func (vc *VBoxContext) Associate(ctx *hypervisor.VmContext) {
 	vc.Driver.Machines[vc.Machine.Name] = ctx
 }
 
-func (vc *VBoxContext) ResumeVm()     {}
+func (vc *VBoxContext) ResumeVm()       {}
+func (vc *VBoxContext) MigrateTimeout() {}
 
 func (vc *VBoxContext) MigrateVm(cmd *hypervisor.MigrateVmCommand) {}
 

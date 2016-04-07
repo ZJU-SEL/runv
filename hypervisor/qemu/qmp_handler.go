@@ -376,6 +376,28 @@ func qmpHandler(ctx *hypervisor.VmContext) {
 			if len(buf) == 1 {
 				go qmpCommander(qc.qmp, conn, msg.(*QmpSession), res)
 			}
+		case QMP_FINISH:
+			glog.Infof("session finished, buffer size %d", len(buf))
+			r := msg.(*QmpFinish)
+			if r.success {
+				glog.V(1).Info("success ")
+				if r.callback != nil {
+					ctx.Hub <- r.callback
+				}
+			} else {
+				reason := "unknown"
+				if c, ok := r.reason["error"]; ok {
+					reason = c.(string)
+				}
+				glog.Error("QMP command failed ", reason)
+				ctx.Hub <- &hypervisor.DeviceFailed{
+					Session: r.callback,
+				}
+			}
+			buf = buf[1:]
+			if len(buf) > 0 {
+				go qmpCommander(qc.qmp, conn, buf[0], res)
+			}
 		case QMP_RESULT, QMP_ERROR:
 			res <- msg
 		case QMP_EVENT:

@@ -144,7 +144,8 @@ func (xd *XenDriver) LoadContext(persisted map[string]interface{}) (hypervisor.D
 	return &XenContext{driver: xd, domId: domid}, nil
 }
 
-func (xc *XenContext) ResumeVm()     {}
+func (xc *XenContext) ResumeVm()       {}
+func (xc *XenContext) MigrateTimeout() {}
 
 func (xc *XenContext) MigrateVm(cmd *hypervisor.MigrateVmCommand) {}
 

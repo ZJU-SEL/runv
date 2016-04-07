@@ -66,6 +66,7 @@ type DriverContext interface {
 
 	MigrateVm(cmd *MigrateVmCommand)
 	ResumeVm()
+	MigrateTimeout()
 
 	Close()
 }
@@ -103,7 +104,8 @@ func (ed *EmptyDriver) SupportLazyMode() bool {
 }
 func (ec *EmptyContext) MigrateVm(cmd *MigrateVmCommand) {}
 
-func (ec *EmptyContext) ResumeVm() {}
+func (ec *EmptyContext) ResumeVm()       {}
+func (ec *EmptyContext) MigrateTimeout() {}
 
 func (ec *EmptyContext) CheckpointVm() {}
 

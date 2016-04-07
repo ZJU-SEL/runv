@@ -949,7 +949,11 @@ func Allocate(vmId, requestedIP string, addrOnly bool, maps []pod.UserContainerP
 
 	ip, err := getIp(net.ParseIP(requestedIP))
 	if err != nil {
-		return nil, err
+		glog.Warning("Get ip from etcd failed, try to allocate ip locally")
+		ip, err = IpAllocator.RequestIP(BridgeIPv4Net, net.ParseIP(requestedIP))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	maskSize, _ := BridgeIPv4Net.Mask.Size()
