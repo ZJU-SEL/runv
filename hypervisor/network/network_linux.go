@@ -1129,6 +1129,7 @@ func initIp() {
 		resp, err := kapi.Set(context.Background(), x.String(), "0", nil)
 		if err != nil {
 			glog.Errorf(err.Error())
+			return
 		} else {
 			// print common key info
 			glog.V(1).Infof("Set is done. Metadata is %q\n", resp)
@@ -1175,6 +1176,7 @@ func getIp(ip net.IP) (net.IP, error) {
 		resp, err = kapi.Get(context.Background(), requstedIp.String(), nil)
 		if err != nil {
 			glog.Errorf(err.Error())
+			return nil, err
 		} else {
 			mutex, err = strconv.Atoi(resp.Node.Value)
 			mutex = mutex + 1
